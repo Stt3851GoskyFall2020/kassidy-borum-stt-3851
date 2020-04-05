@@ -1,0 +1,144 @@
+---
+title: "Project 1"
+author: "Kassidy Borum"
+date: "4/3/2020"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+library(readxl)
+library(dplyr)
+```
+  
+Import data:
+```{r}
+library(readxl)
+
+house <- read_xlsx("Housing.xlsx")
+```
+
+#Data Summary: 
+
+**Find any missing values or values that may need clarification/modification**
+```{r}
+#view(house)
+head(house)
+summary(house)
+```
+
+```{r}
+is.na(house) #This code is used to check for any missing values in the data set. Since all values come back saying "FALSE", there is no missing values.
+```
+
+**Stats / Visuals for Categorical Varaibles**
+```{r}
+status_table <- table(house$status) #Amount of houses for each status
+status_table
+elem_table <- table(house$elem) #Amount of houses for each elementary school district
+elem_table
+
+status_elem_table <- table(house$status, house$elem) #used to look at the number of sold, pending sale, and active listing for each elementary school distrct
+
+prop.table(status_table) #finds the precentage of house sold, pending sale, and active listing
+prop.table(elem_table) #finds the precentage of all the houses listed in each district
+prop.table(status_elem_table) #finds the precentage for each status in each district
+
+reorder_size <- function(x) {
+        factor(x, levels = names(sort(table(x), decreasing = TRUE)))
+} #used to make the plots be shown in descending order
+
+ggplot(house, aes(x = reorder_size(elem))) +
+        geom_bar(fill = "mediumpurple1") +
+        xlab("Elementary School District") +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(house, aes(x = reorder_size(status))) +
+        geom_bar(fill = "lightcoral") +
+        xlab("Status of Houses") +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ 
+
+```
+
+*We can change the categorical variables to numeric values. Ex., for the status variable we could change to factor*
+```{r}
+status= as.factor(house$status)
+house = data.frame(house, status)
+elem = as.factor(house$elem)
+house = data.frame(house, elem)
+```
+
+
+
+#Explortory Data Analysis:
+```{r}
+
+ggplot(data = house, mapping = aes(x = price)) +
+  geom_histogram(fill = "chartreuse4", binwidth = 10)
+
+pairs(~house$price + house$id + house$size + house$lot + house$bath + house$bedrooms + house$yearbuilt + house$agestandardized + house$garagesize) #scatteplot matrix for all the numerical variables.
+
+pairs(~house$price + house$yearbuilt + house$lot + house$size) #a smaller scale of the scatterplot matrix of the variables that looked that like price increased as the other vairables increased based on the previous matrix. There are most likely the variables I will use in my inital model. 
+
+ggplot(house, aes(x = price, y=size)) +
+  geom_point(shape = 1) + 
+  geom_smooth()
+
+ggplot(house, aes(x = price, y=lot)) +
+  geom_point(shape = 1) + 
+  geom_smooth()
+
+ggplot(house, aes(x = price, y=yearbuilt)) +
+  geom_point(shape = 1) + 
+  geom_smooth()
+
+```
+
+#Initial Modeling:
+```{r}
+#First I'm creating a multiple linear regression model including all the varaibles except that "id" varaibel as that refers to the case number and felt like it would not help with predict price. (I thought of this as the same idea as student banner ID numbers would not help predict a student grades as it is a randomly assigned number)
+
+#I started with a larger model to look at the p-values, we could've skipped the step of creating multiple models and use the variables that showed a relationship in the matrices, but I just wanted to double check. A long with the fact that I wanted to see the status and elementary school district effects on the model. 
+
+price_model <- lm(house$price~house$status + house$elem + house$size + house$lot + house$bath + house$bedrooms + house$yearbuilt + house$agestandardized + house$garagesize)
+summary(price_model)
+
+#I'm taking out the varaibles with larger p-values and seeing how it effects the overall effecicenty of the model -- this is to help find "the best fit" model
+price_model2 <- lm(house$price~house$status + house$elem + house$size + house$lot + house$bedrooms + house$yearbuilt + house$garagesize)
+summary(price_model2)
+
+price_model3 <- lm(house$price~ house$elem + house$size + house$lot + house$bedrooms + house$yearbuilt)
+summary(price_model3)
+
+price_model4 <- lm(house$price~ house$elem + house$size + house$lot + house$yearbuilt)
+summary(price_model4)
+
+inital_model <- lm(house$price~ house$elem + house$size + house$lot + house$yearbuilt)
+summary(inital_model) #same model as price_model4, but renamed
+
+```
+
+
+Price = 
+
+```{r}
+plot(inital_model) 
+```
+
+I wanted to start with a "larger" model as my inital model and decided to use the first model where I had intercept p-vlaue < 0.05. I will create a smaller model in the next step. 
+
+**Model Modification**
+```{r}
+#I decided to modify my intial model by taking out elem and yearbuilt variables. I made this decision based on the plots I made in the exploratory data analysis step as they showed a obvious and steady linear increase in price as house size and lot size went up. 
+
+new_model <- lm(house$price ~ house$size + house$lot)
+summary(new_model) #you can see we get a smaller intercept p-value using this modified model. 
+
+plot(new_model)
+```
+
