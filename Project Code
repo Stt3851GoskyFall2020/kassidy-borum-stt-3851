@@ -12,6 +12,7 @@ library(tidyverse)
 library(ggplot2)
 library(readxl)
 library(dplyr)
+library(RSQLite)
 ```
   
 Import data:
@@ -85,30 +86,29 @@ pairs(~house$price + house$id + house$size + house$lot + house$bath + house$bedr
 
 pairs(~house$price + house$yearbuilt + house$lot + house$size) #a smaller scale of the scatterplot matrix of the variables that looked that like price increased as the other vairables increased based on the previous matrix. There are most likely the variables I will use in my inital model. 
 
-ggplot(house, aes(x = price, y=size)) +
+ggplot(house, aes(x = size, y=price)) +
   geom_point(shape = 1) + 
   geom_smooth()
 
-ggplot(house, aes(x = price, y=lot)) +
+#We can see from the plot that as price goes up, house size slowly goes up as well. This indidcates that there may be a relationship between size and price. 
+ggplot(house, aes(x = lot, y=price)) +
   geom_point(shape = 1) + 
   geom_smooth()
-
-ggplot(house, aes(x = price, y=yearbuilt)) +
+#This plot shows a big increase in price as lot. When I build my model, lot is a variable that should be included. 
+ggplot(house, aes(x = yearbuilt, y=price)) +
   geom_point(shape = 1) + 
   geom_smooth()
-
+#Yearbuilt decreased as the year goes up, but around 1960 it switches to increasing in price, this could be due to different econmoic factors including stock market crashes, great depression, wage increases, etc. 
 ```
 
 #Initial Modeling:
 ```{r}
-#First I'm creating a multiple linear regression model including all the varaibles except that "id" varaibel as that refers to the case number and felt like it would not help with predict price. (I thought of this as the same idea as student banner ID numbers would not help predict a student grades as it is a randomly assigned number)
-
-#I started with a larger model to look at the p-values, we could've skipped the step of creating multiple models and use the variables that showed a relationship in the matrices, but I just wanted to double check. A long with the fact that I wanted to see the status and elementary school district effects on the model. 
+#First I'm creating a multiple linear regression model including all the varaibles except that "id" varaibel as that refers to the case number and felt like it would not help with predict price. (I thought of this as the same idea as student banner ID numbers would not help predict a student grades as it is a randomly assigned number).
 
 price_model <- lm(house$price~house$status + house$elem + house$size + house$lot + house$bath + house$bedrooms + house$yearbuilt + house$agestandardized + house$garagesize)
 summary(price_model)
 
-#I'm taking out the varaibles with larger p-values and seeing how it effects the overall effecicenty of the model -- this is to help find "the best fit" model
+
 price_model2 <- lm(house$price~house$status + house$elem + house$size + house$lot + house$bedrooms + house$yearbuilt + house$garagesize)
 summary(price_model2)
 
@@ -118,21 +118,28 @@ summary(price_model3)
 price_model4 <- lm(house$price~ house$elem + house$size + house$lot + house$yearbuilt)
 summary(price_model4)
 
-inital_model <- lm(house$price~ house$elem + house$size + house$lot + house$yearbuilt)
-summary(inital_model) #same model as price_model4, but renamed
+inital_model <- lm(house$price~house$status + house$elem + house$size + house$lot + house$bath + house$bedrooms + house$yearbuilt + house$agestandardized + house$garagesize) #same model as price_model, but renamed. I picked this model because it had the best R-squared value.
 
 ```
 
 
-Price = 
+
 
 ```{r}
 plot(inital_model) 
 ```
 
-I wanted to start with a "larger" model as my inital model and decided to use the first model where I had intercept p-vlaue < 0.05. I will create a smaller model in the next step. 
+I wanted to start with a "larger" model as my inital model and decided to use the first model where I had r-square value > .50. I will create a smaller model in the next step.
 
-**Model Modification**
+The **residuals vs. fitted** plot seems to be generally symmetric around the 0 line, no clear pattern, and there may be a few outliers, but there aren't insanely outside the majority of the other datapoints. The plot suggest there's a relatively straight linear relationship between the price and the predictors. 
+
+The **normal Q-Q** plots is a relative straight line, which means our model is in relatively good agreement with Normality.
+
+The **scale-location** plot doesn't show an obivious trend/pattern and the points are equally spread throughout the plot, whcih means we could come to the assumption that the model has equal variance -- the residuals are spread equally along the ranges of the predictors. 
+
+The **residuals vs. leverage** doesn't show any influentrial cases -- all the points are within the dashed Cook's distance line. Point 4 and 74 are close to the upper distance. These two cases could be taken out of the dataset to see if it influences the model at all, but because they are still inside the dashed line, I'm keeping them in. 
+
+#Model Modification:
 ```{r}
 #I decided to modify my intial model by taking out elem and yearbuilt variables. I made this decision based on the plots I made in the exploratory data analysis step as they showed a obvious and steady linear increase in price as house size and lot size went up. 
 
@@ -140,5 +147,36 @@ new_model <- lm(house$price ~ house$size + house$lot)
 summary(new_model) #you can see we get a smaller intercept p-value using this modified model. 
 
 plot(new_model)
+
+
 ```
+
+The **residuals vs. fitted** plot seems to be generally symmetric around the 0 line, no clear pattern, but there is a couple clear outliers. This could infer that the model isn't a good fit for a linear model or we could find the furtherest two points out of the dataset and test how influential they are. 
+
+The **normal Q-Q** plots is a relative straight line, which means our model is in relatively good agreement with Normality. It defintely doesn't follow the line as well the intial model. 
+
+The **scale-location** plot doesn't show an obivious trend/pattern, but the majoriy of the points are to the left of the plots with a couple outliers. This could indidcate that there isn't equal variance. 
+
+The **residuals vs. leverage** doesn't show any influentrial cases -- all the points are within the dashed Cook's distance line. Once again point 74 is a heavy outlier, which was the case in the inital model. If we were to continue to build more models, I would take this point out, along with point 4. 
+#Conclusion:
+
+It's not surprising the the size of the house and lot size are the best for predicting the price of housing, since it's normal for larger houses and/or larger lot sizes to be more expensive compared to smaller homes. I believe the elementary school district does have great effects on the pricing of houses as well, as homes in nicer school district are usually more expensive, but it also depends the average age range of the community. For example, in areas like Surfside Beach, SC, most of the full-time residents are older, retired people and a lot of the housing is rental vacation homes, thus the elemntary school district is not as important to buyers there since majority of retired people don't have elementary age children and the people in the vacation homes aren't there full-time.
+
+**R-sqaured value:** 
+```{r}
+summary(new_model)
+```
+
+**95% confidence intervals:**
+```{r}
+t.test(house$size)
+t.test(house$lot)
+
+CI(house$size, ci = 0.95)
+CI(house$lot, ci = 0.95)
+```
+
+
+
+
 
